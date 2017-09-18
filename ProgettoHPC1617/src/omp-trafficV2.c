@@ -63,7 +63,8 @@ unsigned int IDX(int n, int i, int j) {
 /* Move all left-to-right vehicles that are not blocked */
 void horizontal_step( cell_t *cur, cell_t *next, int n )
 {
-    #pragma omp parallel for collapse(2)
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
     for(int i=0; i<n; i++){
       for(int j=0; j<n; j++){
         if(cur[IDX(n, i,j-1)] == LR && cur[IDX(n, i,j)] == EMPTY) {
@@ -80,7 +81,8 @@ void horizontal_step( cell_t *cur, cell_t *next, int n )
 /* Move all top-to-bottom vehicles that are not blocked */
 void vertical_step( cell_t *cur, cell_t *next, int n )
 {
-    #pragma omp parallel for collapse(2)
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
     for(int i=0; i<n; i++){
       for(int j=0; j<n; j++){
         if(cur[IDX(n, i-1,j)] == TB && cur[IDX(n, i,j)] == EMPTY) {
@@ -190,15 +192,20 @@ int main( int argc, char* argv[] )
     setup(cur, N, rho);
     tstart = hpc_gettime();
 
-    for (s=0; s<nsteps; s++) {
-      horizontal_step(cur, next, N);
-      vertical_step(next, cur, N);
+    /*Creates a team of theads once to reduce potential overhead*/
+    #pragma omp parallel default(none) shared(cur,next,N,nsteps) private(s)
+    {
+      for (s=0; s<nsteps; s++) {
+        horizontal_step(cur, next, N);
+        vertical_step(next, cur, N);
+      }
     }
-
     tend = hpc_gettime();
     fprintf(stderr, "Execution time (s): %f\n", tend - tstart);
+
     /* dump last state */
-    snprintf(buf, BUFLEN, "traffic-%05d.ppm", s);
+    s = nsteps;
+    snprintf(buf, BUFLEN, "trafficV2-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */
