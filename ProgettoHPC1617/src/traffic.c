@@ -194,9 +194,9 @@ int main( int argc, char* argv[] )
         vertical_step(next, cur, N);
     }
     tend = hpc_gettime();
-    fprintf(stderr, "Execution time (s): %f\n", tend - tstart);
+    fprintf(stdout, "Execution time (s): %f\n", tend - tstart);
     /* dump last state */
-    snprintf(buf, BUFLEN, "traffic-%05d.ppm", s);
+    snprintf(buf, BUFLEN, "traffic-%d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */

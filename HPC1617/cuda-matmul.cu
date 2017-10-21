@@ -4,13 +4,13 @@
  *
  * Written in 2017 by Moreno Marzolla <moreno.marzolla(at)unibo.it>
  *
- * To the extent possible under law, the author(s) have dedicated all 
- * copyright and related and neighboring rights to this software to the 
+ * To the extent possible under law, the author(s) have dedicated all
+ * copyright and related and neighboring rights to this software to the
  * public domain worldwide. This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication
- * along with this software. If not, see 
- * <http://creativecommons.org/publicdomain/zero/1.0/>. 
+ * along with this software. If not, see
+ * <http://creativecommons.org/publicdomain/zero/1.0/>.
  *
  * ---------------------------------------------------------------------------
  *
@@ -32,7 +32,7 @@
 #include <math.h>       /* for fabsf()  */
 #include <string.h>     /* for bzero()  */
 
-#define BLKSIZE 16
+#define BLKSIZE 32
 
 /* Compute r = p * q, for square nxn matrices p, q, r; this version
    does not use shared memory. This kernel does not require that n is
@@ -71,7 +71,7 @@ __global__ void matmulb( const float *p, const float *q, float *r, int n )
             v += local_p[ty][k] * local_q[k][tx];
         }
         __syncthreads();
-    }    
+    }
     r[i*n + j] = v; /* write back to global memory */
 }
 
@@ -85,7 +85,7 @@ void mat_init( float *q, int n )
     }
 }
 
-int check_result( const float *r, int n ) 
+int check_result( const float *r, int n )
 {
     /* Check result */
     int i, j;
@@ -101,9 +101,9 @@ int check_result( const float *r, int n )
     return 1;
 }
 
-int main( int argc, char* argv[] ) 
+int main( int argc, char* argv[] )
 {
-    float *p, *q, *r;	          /* host copies of p, q, r */ 
+    float *p, *q, *r;	          /* host copies of p, q, r */
     float *d_p, *d_q, *d_r;	  /* device copies of p, q, r */
     int N = 512;
     double tstart, tstop, tnoshared, tshared;

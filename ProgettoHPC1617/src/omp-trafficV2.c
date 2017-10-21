@@ -1,8 +1,8 @@
 /****************************************************************************
  *
- * traffic.c - Biham-Middleton-Levine traffic model
+ * omp-traffic.c - Biham-Middleton-Levine traffic model
  *
- * Written in 2017 by Moreno Marzolla <moreno.marzolla(at)unibo.it>
+ * Written in 2017 by Ma XiangXiang <XiangXiang.ma(at).studio.unibo.it>
  *
  * To the extent possible under law, the author(s) have dedicated all
  * copyright and related and neighboring rights to this software to the
@@ -24,16 +24,16 @@
  * the second phase, only TB vehicles move, again provided that the
  * destination cell is empty.
  *
- * This program is not complete: some functions are missing and must
- * be implemented.
+ * This program uses Open-MP.
  *
  * Compile with:
  *
- * gcc -fopenmp -std=c99 -Wall -Wpedantic traffic.c -o traffic
+ * 1) make
+ * 2) gcc -fopenmp -std=c99 -Wall -Wpedantic omp-traffic.c -o omp-traffic
  *
  * Run with:
  *
- * ./traffic [nsteps [rho [N]]]
+ * ./omp-traffic [nsteps [rho [N]]]
  *
  * where nsteps is the number of simulation steps to execute, rho is
  * the density of vehicles (probability that a cell is occupied by a
@@ -192,7 +192,7 @@ int main( int argc, char* argv[] )
     setup(cur, N, rho);
     tstart = hpc_gettime();
 
-    /*Creates a team of theads once to reduce potential overhead*/
+    /* Creates a team of theads only once in order to reduce overhead */
     #pragma omp parallel default(none) shared(cur,next,N,nsteps) private(s)
     {
       for (s=0; s<nsteps; s++) {
@@ -201,11 +201,11 @@ int main( int argc, char* argv[] )
       }
     }
     tend = hpc_gettime();
-    fprintf(stderr, "Execution time (s): %f\n", tend - tstart);
+    fprintf(stdout, "Execution time (s): %f\n", tend - tstart);
 
     /* dump last state */
     s = nsteps;
-    snprintf(buf, BUFLEN, "trafficV2-%05d.ppm", s);
+    snprintf(buf, BUFLEN, "omp-trafficV2-%d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */
