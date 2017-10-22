@@ -25,28 +25,28 @@ then
   echo -n -e "\tOMP= \t\t\t\t"
   tOmp1=`echo $(./omp-traffic $1 $2 $3) | grep -Eo $regex`
   echo $tOmp1 "(`awk "BEGIN {print $tSerial/$tOmp1}"`x speedup)"
-  cmp traffic-$1.ppm omp-traffic-$1.ppm
+  cmp `printf "traffic-%05d.ppm" $1` `printf "omp-traffic-%05d.ppm" $1`
 
   echo $div
 
   echo -n -e "\tOMP-V2= \t\t\t"
   tOmp2=`echo $(./omp-trafficV2 $1 $2 $3) | grep -Eo $regex`
   echo $tOmp2 "(`awk "BEGIN {print $tSerial/$tOmp2}"`x speedup)"
-  cmp traffic-$1.ppm omp-trafficV2-$1.ppm
+  cmp `printf "traffic-%05d.ppm" $1` `printf "omp-trafficV2-%05d.ppm" $1`
 
   echo $div
 
   echo -n -e "\tCuda w/o shared memory = \t"
   tcuda=`echo $(./cuda-traffic $1 $2 $3) | grep -Eo $regex`
   echo $tcuda "(`awk "BEGIN {print $tSerial/$tcuda}"`x speedup)"
-  cmp traffic-$1.ppm cuda-traffic-$1.ppm
+  cmp `printf "traffic-%05d.ppm" $1` `printf "cuda-traffic-%05d.ppm" $1`
 
   echo $div
 
   echo -n -e "\tCuda w/ shared memory = \t"
   tcudaV2=`echo $(./cuda-trafficV2 $1 $2 $3) | grep -Eo $regex`
   echo $tcudaV2 "(`awk "BEGIN {print $tSerial/$tcudaV2}"`x speedup)"
-  cmp traffic-$1.ppm cuda-trafficV2-$1.ppm
+  cmp `printf "traffic-%05d.ppm" $1` `printf "cuda-trafficV2-%05d.ppm" $1`
 
   echo +$div+
   echo ""

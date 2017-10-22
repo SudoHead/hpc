@@ -236,7 +236,7 @@ int main( int argc, char* argv[] )
 
     /* dump last state */
     s = nsteps;
-    snprintf(buf, BUFLEN, "cuda-traffic-%d.ppm", s);
+    snprintf(buf, BUFLEN, "cuda-traffic-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */

@@ -205,7 +205,7 @@ int main( int argc, char* argv[] )
 
     /* dump last state */
     s = nsteps;
-    snprintf(buf, BUFLEN, "omp-trafficV2-%d.ppm", s);
+    snprintf(buf, BUFLEN, "omp-trafficV2-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */

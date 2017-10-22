@@ -198,7 +198,7 @@ int main( int argc, char* argv[] )
     tend = hpc_gettime();
     fprintf(stdout, "Execution time (s): %f\n", tend - tstart);
     /* dump last state */
-    snprintf(buf, BUFLEN, "omp-traffic-%d.ppm", s);
+    snprintf(buf, BUFLEN, "omp-traffic-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */

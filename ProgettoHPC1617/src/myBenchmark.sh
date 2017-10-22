@@ -21,7 +21,7 @@ then
 	if [ "$1" == "-omp" ]
 	then
 
-		echo "Programma: " $3 " | num_test = " $num_tests
+		echo "Program: " $3 " | num_test = " $num_tests
 		echo "OMP # threads = " $2
 		for((i=1; i <= $num_tests; i++))
 		do
@@ -30,7 +30,7 @@ then
 
 	else
 
-		echo "Programma: " $1 " | num_test = " $num_tests
+		echo "Program: " $1 " | num_test = " $num_tests
 		for((i=1; i <= $num_tests;i++))
 		do
 			echo `$1` | grep -Eo $regex
