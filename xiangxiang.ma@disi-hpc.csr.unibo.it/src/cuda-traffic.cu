@@ -44,7 +44,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BLKSIZE 16
+#define BLKSIZE 32
 
 typedef unsigned char cell_t;
 

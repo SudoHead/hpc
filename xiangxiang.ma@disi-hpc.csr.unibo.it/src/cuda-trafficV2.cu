@@ -1,6 +1,6 @@
 /*******************************TODO*********************************************
  *
- * cuda-traffic.cu - Biham-Middleton-Levine traffic model
+ * cuda-trafficV2.cu - Biham-Middleton-Levine traffic model
  *
  * Written in 2017 by Ma XiangXiang <xiangxiang.ma(at).studio.unibo.it>
  *
@@ -24,27 +24,29 @@
  * the second phase, only TB vehicles move, again provided that the
  * destination cell is empty.
  *
- * This program uses CUDA.
+ * This program uses cuda shared memory.
  *
  * Compile with:
  *
  * 1) make cuda
- * 2) nvcc cuda-traffic.cu -o cuda-traffic
+ * 2) nvcc cuda-trafficV2.cu -o cuda-trafficV2
  *
  * Run with:
  *
- * ./cuda-traffic [nsteps [rho [N]]]
+ * ./cuda-trafficV2 [nsteps [rho [N]]]
  *
  * where nsteps is the number of simulation steps to execute, rho is
  * the density of vehicles (probability that a cell is occupied by a
  * vehicle), and N is the grid size.
+ *
+ * NOTE: N must be multiple of BLKSIZE
  *
  ****************************************************************************/
 #include "hpc.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BLKSIZE 16
+#define BLKSIZE 32
 
 typedef unsigned char cell_t;
 
@@ -62,49 +64,95 @@ __device__ int IDX(int n, int i, int j) {
   return row*n + col;
 }
 
-/*  Performs an horizontal step: each thread processes one step of a cell.  */
-__global__ void horizontal_step(cell_t *cur, cell_t *next, int n) {
+/*  Performs an horizontal step: each thread processes one step of a cell.
+    It uses shared memory, each block has its own local copy of a portion
+    of the domain stored as a matrix.
+*/
+__global__ void horizontal_stepV2(cell_t *cur, cell_t *next, int n) {
   const int i = blockIdx.y * blockDim.y + threadIdx.y;
   const int j = blockIdx.x * blockDim.x + threadIdx.x;
-  const int local_n = n; // saves a local copy to reduce latency
+  const int ty = threadIdx.y;
+  const int tx = threadIdx.x;
+  int local_n = n; // saves a local copy to reduce latency
 
-  if(i < local_n && j < local_n) { //Makes the kernel function with arbitrary domain size
-    //creates local variables in order to limit access to global memory
-    const cell_t left = cur[IDX(local_n, i, j-1)];
-    const cell_t center = cur[IDX(local_n, i, j)];
-    const cell_t right = cur[IDX(local_n, i, j+1)];
+  //Using shared memory to reduce access of global memory.
+  //Halo of one element horizontally on each side
+  __shared__ cell_t local_cur[BLKSIZE][BLKSIZE+2];
 
-    if(left == LR && center == EMPTY) {
-      next[IDX(local_n, i,j)] = LR;
-    } else if (center == LR && right == EMPTY ){
-      next[IDX(local_n, i,j)] = EMPTY;
-    } else {
-      next[IDX(local_n, i,j)] = center;
-    }
+  if(i < local_n && j < local_n) {
+      //Initializing the shared memory
+      local_cur[ty][tx+1] = cur[IDX(local_n, i, j)];
+
+      //Inizializes the halo on the left and right borders of the block
+      if(tx == 0) {
+        local_cur[ty][0] = cur[IDX(local_n, i, j-1)];
+      } else if(tx == BLKSIZE - 1) {
+        local_cur[ty][tx+2] = cur[IDX(local_n, i, j+1)];
+      }
+
+      //Waits for all threads to complete the initialization
+      __syncthreads();
+
+      //Proceed to excecute the step
+      const cell_t left = local_cur[ty][tx];
+      const cell_t center = local_cur[ty][tx+1];
+      const cell_t right = local_cur[ty][tx+2];
+
+      if(left == LR && center == EMPTY) {
+        next[IDX(local_n, i,j)] = LR;
+      } else if (center == LR && right == EMPTY ){
+        next[IDX(local_n, i,j)] = EMPTY;
+      } else {
+        next[IDX(local_n, i,j)] = center;
+      }
   }
 }
 
-/*  Performs a vertical step: each thread processes one step of a cell.  */
-__global__ void vertical_step(cell_t *cur, cell_t *next, int n) {
+
+/*  Performs an horizontal step: each thread processes one step of a cell.
+    It uses shared memory, each block has its own local copy of a portion
+    of the domain stored as a matrix.
+*/
+__global__ void vertical_stepV2(cell_t *cur, cell_t *next, int n) {
   const int i = blockIdx.y * blockDim.y + threadIdx.y;
   const int j = blockIdx.x * blockDim.x + threadIdx.x;
-  const int local_n = n; // saves a local copy to reduce latency
+  const int ty = threadIdx.y;
+  const int tx = threadIdx.x;
+  int local_n=n; // saves a local copy to reduce latency
+
+  //Using shared memory to reduce access of global memory.
+  //Halo of one element vertically on each side
+  __shared__ cell_t local_cur[BLKSIZE+2][BLKSIZE];
 
   if(i < local_n && j <  local_n) {
-    //creates local variables in order to limit access to global memory
-    const cell_t up = cur[IDX(local_n, i-1, j)];
-    const cell_t center = cur[IDX(local_n, i, j)];
-    const cell_t down = cur[IDX(local_n, i+1, j)];
+      //Initializing the shared memory
+      local_cur[ty+1][tx] = cur[IDX(local_n, i, j)];
 
-    if(up == TB && center == EMPTY) {
-      next[IDX(local_n, i,j)] = TB;
-    } else if (center == TB && down == EMPTY ){
-      next[IDX(local_n, i,j)] = EMPTY;
-    } else {
-      next[IDX(local_n, i,j)] = center;
+      //Inizializes the halo on the top and bottom borders of the block
+      if(ty == 0) {
+        local_cur[0][tx] = cur[IDX(local_n, i-1, j)];
+      } else if(ty == BLKSIZE - 1) {
+        local_cur[ty+2][tx] = cur[IDX(local_n, i+1, j)];
+      }
+
+      //Waits for all threads to complete the initialization
+      __syncthreads();
+
+      //Proceed to excecute the step
+      const cell_t up = local_cur[ty][tx];
+      const cell_t center = local_cur[ty+1][tx];
+      const cell_t down = local_cur[ty+2][tx];
+
+      if(up == TB && center == EMPTY) {
+        next[IDX(local_n, i,j)] = TB;
+      } else if (center == TB && down == EMPTY ){
+        next[IDX(local_n, i,j)] = EMPTY;
+      } else {
+        next[IDX(local_n, i,j)] = center;
+      }
     }
-  }
 }
+
 
 
 /*Returns a random number between 0 and 1*/
@@ -193,6 +241,10 @@ int main( int argc, char* argv[] )
 
     if ( argc > 3 ) {
         N = atoi(argv[3]);
+        if(N % BLKSIZE != 0) {
+          fprintf(stderr, "N must be multiple of BLOCKSIZE (%d)\n", BLKSIZE);
+          return 0;
+        }
     }
 
     /*  Sets a 2D square block of BLKSIZE dimension */
@@ -218,12 +270,12 @@ int main( int argc, char* argv[] )
     tstart = hpc_gettime();
     for(int k=0; k < nsteps; k++) {
       //Async kernel call
-      horizontal_step<<<grid, threadPerBlock>>>(d_cur, d_next, N);
+      horizontal_stepV2<<<grid, threadPerBlock>>>(d_cur, d_next, N);
       //Waits for the kernel to complete
       cudaDeviceSynchronize();
 
       //Async kernel call
-      vertical_step<<<grid, threadPerBlock>>>(d_next, d_cur, N);
+      vertical_stepV2<<<grid, threadPerBlock>>>(d_next, d_cur, N);
       //Waits for the kernel to complete
       cudaDeviceSynchronize();
     }
@@ -236,7 +288,7 @@ int main( int argc, char* argv[] )
 
     /* dump last state */
     s = nsteps;
-    snprintf(buf, BUFLEN, "cuda-traffic-%05d.ppm", s);
+    snprintf(buf, BUFLEN, "cuda-trafficV2-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */

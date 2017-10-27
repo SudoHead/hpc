@@ -32,7 +32,7 @@
 #include <math.h>       /* for fabsf()  */
 #include <string.h>     /* for bzero()  */
 
-#define BLKSIZE 32
+#define BLKSIZE 64
 
 /* Compute r = p * q, for square nxn matrices p, q, r; this version
    does not use shared memory. This kernel does not require that n is
@@ -137,6 +137,7 @@ int main( int argc, char* argv[] )
     cudaMemcpy(d_q, q, size, cudaMemcpyHostToDevice);
 
     printf("Matrix-Matrix multiplication (%dx%d)\n", N, N);
+    printf("grid (%d, %d)\n", (N+BLKSIZE-1)/BLKSIZE, (N+BLKSIZE-1)/BLKSIZE);
 
     /**
      ** Matrix-matrix multiply WITHOUT shared memory

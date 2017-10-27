@@ -1,8 +1,8 @@
-/*******************************TODO*********************************************
+/****************************************************************************
  *
- * cuda-traffic.cu - Biham-Middleton-Levine traffic model
+ * omp-traffic.c - Biham-Middleton-Levine traffic model
  *
- * Written in 2017 by Ma XiangXiang <xiangxiang.ma(at).studio.unibo.it>
+ * Written in 2017 by Ma XiangXiang <XiangXiang.ma(at).studio.unibo.it>
  *
  * To the extent possible under law, the author(s) have dedicated all
  * copyright and related and neighboring rights to this software to the
@@ -24,16 +24,16 @@
  * the second phase, only TB vehicles move, again provided that the
  * destination cell is empty.
  *
- * This program uses CUDA.
+ * This program uses Open-MP.
  *
  * Compile with:
  *
- * 1) make cuda
- * 2) nvcc cuda-traffic.cu -o cuda-traffic
+ * 1) make
+ * 2) gcc -fopenmp -std=c99 -Wall -Wpedantic omp-traffic.c -o omp-traffic
  *
  * Run with:
  *
- * ./cuda-traffic [nsteps [rho [N]]]
+ * ./omp-traffic [nsteps [rho [N]]]
  *
  * where nsteps is the number of simulation steps to execute, rho is
  * the density of vehicles (probability that a cell is occupied by a
@@ -44,8 +44,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BLKSIZE 16
-
 typedef unsigned char cell_t;
 
 /* Possible values stored in a grid cell */
@@ -55,57 +53,48 @@ enum {
     TB          /* top-to-bottom vehicle */
 };
 
-/*  Function used by the kernels to map from matrix indexing to array indexing */
-__device__ int IDX(int n, int i, int j) {
+/*Return the right cyclic matrix index*/
+unsigned int IDX(int n, int i, int j) {
   int row = (i+n)%n;
   int col = (j+n)%n;
   return row*n + col;
 }
 
-/*  Performs an horizontal step: each thread processes one step of a cell.  */
-__global__ void horizontal_step(cell_t *cur, cell_t *next, int n) {
-  const int i = blockIdx.y * blockDim.y + threadIdx.y;
-  const int j = blockIdx.x * blockDim.x + threadIdx.x;
-  const int local_n = n; // saves a local copy to reduce latency
-
-  if(i < local_n && j < local_n) { //Makes the kernel function with arbitrary domain size
-    //creates local variables in order to limit access to global memory
-    const cell_t left = cur[IDX(local_n, i, j-1)];
-    const cell_t center = cur[IDX(local_n, i, j)];
-    const cell_t right = cur[IDX(local_n, i, j+1)];
-
-    if(left == LR && center == EMPTY) {
-      next[IDX(local_n, i,j)] = LR;
-    } else if (center == LR && right == EMPTY ){
-      next[IDX(local_n, i,j)] = EMPTY;
-    } else {
-      next[IDX(local_n, i,j)] = center;
-    }
-  }
+/* Move all left-to-right vehicles that are not blocked */
+void horizontal_step( cell_t *cur, cell_t *next, int n )
+{
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
+    for(int i=0; i<n; i++){
+      for(int j=0; j<n; j++){
+        if(cur[IDX(n, i,j-1)] == LR && cur[IDX(n, i,j)] == EMPTY) {
+          next[IDX(n, i,j)] = LR;
+        } else if (cur[IDX(n, i,j)] == LR && cur[IDX(n, i,j+1)] == EMPTY ){
+          next[IDX(n, i,j)] = EMPTY;
+        } else {
+          next[IDX(n, i,j)] = cur[IDX(n, i,j)];
+        }
+      }
+    } // end 1st for
 }
 
-/*  Performs a vertical step: each thread processes one step of a cell.  */
-__global__ void vertical_step(cell_t *cur, cell_t *next, int n) {
-  const int i = blockIdx.y * blockDim.y + threadIdx.y;
-  const int j = blockIdx.x * blockDim.x + threadIdx.x;
-  const int local_n = n; // saves a local copy to reduce latency
-
-  if(i < local_n && j <  local_n) {
-    //creates local variables in order to limit access to global memory
-    const cell_t up = cur[IDX(local_n, i-1, j)];
-    const cell_t center = cur[IDX(local_n, i, j)];
-    const cell_t down = cur[IDX(local_n, i+1, j)];
-
-    if(up == TB && center == EMPTY) {
-      next[IDX(local_n, i,j)] = TB;
-    } else if (center == TB && down == EMPTY ){
-      next[IDX(local_n, i,j)] = EMPTY;
-    } else {
-      next[IDX(local_n, i,j)] = center;
-    }
-  }
+/* Move all top-to-bottom vehicles that are not blocked */
+void vertical_step( cell_t *cur, cell_t *next, int n )
+{
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
+    for(int i=0; i<n; i++){
+      for(int j=0; j<n; j++){
+        if(cur[IDX(n, i-1,j)] == TB && cur[IDX(n, i,j)] == EMPTY) {
+          next[IDX(n, i,j)] = TB;
+        } else if (cur[IDX(n, i,j)] == TB && cur[IDX(n, i+1,j)] == EMPTY ){
+          next[IDX(n, i,j)] = EMPTY;
+        } else {
+          next[IDX(n, i,j)] = cur[IDX(n, i,j)];
+        }
+      }
+    } // end 1st for
 }
-
 
 /*Returns a random number between 0 and 1*/
 float getRand() {
@@ -123,9 +112,9 @@ void setup( cell_t* grid, int n, float rho )
       for(int j=0; j<n; j++) {
 
         if(getRand() <= rho) {
-          grid[i*n + j] = getRand() <= 0.5 ? TB : LR;
+          grid[IDX(n, i,j)] = getRand() <= 0.5 ? TB : LR;
         } else {
-          grid[i*n + j] = EMPTY;
+          grid[IDX(n, i,j)] = EMPTY;
         }
       }
     }
@@ -148,7 +137,7 @@ void dump( const cell_t *grid, int n, const char* filename )
     fprintf(out, "255\n");
     for (i=0; i<n; i++) {
         for (j=0; j<n; j++) {
-            switch( grid[i*n + j] ) {
+            switch( grid[IDX(n, i,j)] ) {
             case EMPTY:
                 fprintf(out, "%c%c%c", 255, 255, 255);
                 break;
@@ -159,7 +148,7 @@ void dump( const cell_t *grid, int n, const char* filename )
                 fprintf(out, "%c%c%c", 255, 0, 0);
                 break;
             default:
-                printf("Error: unknown cell state %u\n", grid[i*n + j]);
+                printf("Error: unknown cell state %u\n", grid[IDX(n, i,j)]);
                 abort();
             }
         }
@@ -172,7 +161,6 @@ void dump( const cell_t *grid, int n, const char* filename )
 int main( int argc, char* argv[] )
 {
     cell_t *cur, *next;
-    cell_t *d_cur, *d_next;
     char buf[BUFLEN];
     int s, N = 256, nsteps = 512;
     float rho = 0.2;
@@ -195,54 +183,33 @@ int main( int argc, char* argv[] )
         N = atoi(argv[3]);
     }
 
-    /*  Sets a 2D square block of BLKSIZE dimension */
-    dim3 threadPerBlock(BLKSIZE, BLKSIZE);
-    /*  Sets a 2D cuda grid big enough to associate each cell to a thread  */
-    dim3 grid((N+BLKSIZE-1)/BLKSIZE, (N+BLKSIZE-1)/BLKSIZE);
     const size_t size = N*N*sizeof(cell_t);
-
-    /* Allocate space for device copies of d_cur, d_next */
-    cudaMalloc((void **)&d_cur, size);
-    cudaMalloc((void **)&d_next, size);
 
     /* Allocate grids */
     cur = (cell_t*)malloc(size);
     next = (cell_t*)malloc(size);
 
     setup(cur, N, rho);
-
-    /*  Copies the host's cur and next to the device  */
-    cudaMemcpy(d_cur, cur, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_next, next, size, cudaMemcpyHostToDevice);
-
     tstart = hpc_gettime();
-    for(int k=0; k < nsteps; k++) {
-      //Async kernel call
-      horizontal_step<<<grid, threadPerBlock>>>(d_cur, d_next, N);
-      //Waits for the kernel to complete
-      cudaDeviceSynchronize();
 
-      //Async kernel call
-      vertical_step<<<grid, threadPerBlock>>>(d_next, d_cur, N);
-      //Waits for the kernel to complete
-      cudaDeviceSynchronize();
+    /* Creates a team of theads only once in order to reduce overhead */
+    #pragma omp parallel default(none) shared(cur,next,N,nsteps) private(s)
+    {
+      for (s=0; s<nsteps; s++) {
+        horizontal_step(cur, next, N);
+        vertical_step(next, cur, N);
+      }
     }
-
     tend = hpc_gettime();
     fprintf(stdout, "Execution time (s): %f\n", tend - tstart);
 
-    /*  Copies the result back to the Host from the device  */
-    cudaMemcpy(cur, d_cur, size, cudaMemcpyDeviceToHost);
-
     /* dump last state */
     s = nsteps;
-    snprintf(buf, BUFLEN, "cuda-traffic-%05d.ppm", s);
+    snprintf(buf, BUFLEN, "omp-trafficV2-%05d.ppm", s);
     dump(cur, N, buf);
 
     /* Free memory */
     free(cur);
     free(next);
-    cudaFree(d_cur);
-    cudaFree(d_next);
     return 0;
 }
