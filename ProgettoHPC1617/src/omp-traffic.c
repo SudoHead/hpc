@@ -1,8 +1,8 @@
 /****************************************************************************
  *
- * traffic.c - Biham-Middleton-Levine traffic model
+ * omp-traffic.c - Biham-Middleton-Levine traffic model
  *
- * Written in 2017 by Moreno Marzolla <moreno.marzolla(at)unibo.it>
+ * Written in 2017 by Ma XiangXiang <XiangXiang.ma(at).studio.unibo.it>
  *
  * To the extent possible under law, the author(s) have dedicated all
  * copyright and related and neighboring rights to this software to the
@@ -24,16 +24,16 @@
  * the second phase, only TB vehicles move, again provided that the
  * destination cell is empty.
  *
- * This program is not complete: some functions are missing and must
- * be implemented.
+ * This program uses Open-MP.
  *
  * Compile with:
  *
- * gcc -fopenmp -std=c99 -Wall -Wpedantic traffic.c -o traffic
+ * 1) make
+ * 2) gcc -fopenmp -std=c99 -Wall -Wpedantic omp-traffic.c -o omp-traffic
  *
  * Run with:
  *
- * ./traffic [nsteps [rho [N]]]
+ * ./omp-traffic [nsteps [rho [N]]]
  *
  * where nsteps is the number of simulation steps to execute, rho is
  * the density of vehicles (probability that a cell is occupied by a
@@ -63,7 +63,8 @@ unsigned int IDX(int n, int i, int j) {
 /* Move all left-to-right vehicles that are not blocked */
 void horizontal_step( cell_t *cur, cell_t *next, int n )
 {
-    #pragma omp parallel for collapse(2)
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
     for(int i=0; i<n; i++){
       for(int j=0; j<n; j++){
         if(cur[IDX(n, i,j-1)] == LR && cur[IDX(n, i,j)] == EMPTY) {
@@ -80,7 +81,8 @@ void horizontal_step( cell_t *cur, cell_t *next, int n )
 /* Move all top-to-bottom vehicles that are not blocked */
 void vertical_step( cell_t *cur, cell_t *next, int n )
 {
-    #pragma omp parallel for collapse(2)
+  /*Uses the same thread team created in the main function*/
+    #pragma omp for collapse(2)
     for(int i=0; i<n; i++){
       for(int j=0; j<n; j++){
         if(cur[IDX(n, i-1,j)] == TB && cur[IDX(n, i,j)] == EMPTY) {
@@ -190,14 +192,19 @@ int main( int argc, char* argv[] )
     setup(cur, N, rho);
     tstart = hpc_gettime();
 
-    for (s=0; s<nsteps; s++) {
-      horizontal_step(cur, next, N);
-      vertical_step(next, cur, N);
+    /* Creates a team of theads only once in order to reduce overhead */
+    #pragma omp parallel default(none) shared(cur,next,N,nsteps) private(s)
+    {
+      for (s=0; s<nsteps; s++) {
+        horizontal_step(cur, next, N);
+        vertical_step(next, cur, N);
+      }
     }
-
     tend = hpc_gettime();
     fprintf(stdout, "Execution time (s): %f\n", tend - tstart);
+
     /* dump last state */
+    s = nsteps;
     snprintf(buf, BUFLEN, "omp-traffic-%05d.ppm", s);
     dump(cur, N, buf);
 

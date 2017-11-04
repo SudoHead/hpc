@@ -32,16 +32,6 @@ then
     echo $div
   fi
 
-  if [ -e "./omp-trafficV2" ]
-  then
-    echo -n -e "\tOMP-V2= \t\t\t"
-    tOmp2=`echo $(./omp-trafficV2 $1 $2 $3) | grep -Eo $regex`
-    echo $tOmp2 "(`awk "BEGIN {print $tSerial/$tOmp2}"`x speedup)"
-    cmp `printf "traffic-%05d.ppm" $1` `printf "omp-trafficV2-%05d.ppm" $1`
-
-    echo $div
-  fi
-
   if [ -e "./cuda-traffic" ]
   then
     echo -n -e "\tCuda w/o shared memory = \t"
@@ -61,11 +51,11 @@ then
 
     echo +$div+
   fi
-  
+
   echo ""
 
 else
 
-  echo usage: ./benchAll [nsteps [rho [N]]]
+  echo usage: ./runAll [nsteps [rho [N]]]
 
 fi
