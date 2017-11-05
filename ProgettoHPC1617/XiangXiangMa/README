@@ -1,0 +1,24 @@
+Progetto di High Performance Computing A.A. 2016-2017
+
+XiangXiang Ma, matr. 0000 718971
+
+Data: 05/11/2017
+
+Parallelizzazione del modello BML con OpenMP e CUDA.
+
+***  Contenuto : ***
+
+- implementazione seriale -> src/traffic.c
+
+- implementazione OpenMP -> src/omp-traffic.c
+
+- implementazione CUDA senza shared memory -> src/cuda-traffic.cu
+
+- implementazione CUDA con shared memory -> src/cuda-trafficV2.cu
+
+- script che mette a confronto i programmi compilati -> src/runAll.sh
+
+
+*** Compilazione:  ***
+
+tramite Makefile, in alternativa: istruzioni all'interno del codice.
